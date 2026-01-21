@@ -1,15 +1,14 @@
 const std = @import("std");
 
 const build_options = @import("build_options");
-const backend = @import("backend");
+const back = @import("back");
 
 const index = @import("index.zig");
 
-const options = index.options;
-const Options = options.Options;
-const ArgIterator = options.ArgIterator;
+const Options = index.Options;
+const ArgIterator = index.ArgIterator;
 
-var singleton: ?TODO_struct = null;
+var singleton: ?Root = null;
 
 pub fn isInit() bool {
     return singleton != null;
@@ -23,15 +22,15 @@ pub fn init(allocator: std.mem.Allocator, args: *ArgIterator) !void {
 }
 
 pub fn deinit() void {
-    if (singleton) |*TODO| TODO.deinit();
+    if (singleton) |*root| root.deinit();
     singleton = null;
 }
 
-pub fn instance() *TODO_struct {
-    return if (singleton) |*TODO| TODO else unreachable;
+pub fn instance() *Root {
+    return if (singleton) |*root| root else unreachable;
 }
 
-const TODO_struct = struct {
+const Root = struct {
     __allocator: std.mem.Allocator,
     __opts: Options,
 
@@ -49,7 +48,7 @@ const TODO_struct = struct {
 
     fn deinit(self: *@This()) void {
         self.ptrOpts().deinit();
-        backend.deinit();
+        back.deinit();
     }
 
     fn getAllocator(self: @This()) std.mem.Allocator {
@@ -79,8 +78,8 @@ const TODO_struct = struct {
     }
 
     pub fn run(self: *@This()) !void {
-        try backend.init(self.getAllocator());
-        errdefer backend.deinit();
+        try back.init(self.getAllocator());
+        errdefer back.deinit();
 
         std.debug.print("TODO\n", .{});
     }

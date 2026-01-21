@@ -1,6 +1,6 @@
 const std = @import("std");
 
-var singleton: ?TODO_struct = null;
+var singleton: ?Root = null;
 
 pub fn isInit() bool {
     return singleton != null;
@@ -14,15 +14,15 @@ pub fn init(allocator: std.mem.Allocator) !void {
 }
 
 pub fn deinit() void {
-    if (singleton) |*TODO| TODO.deinit();
+    if (singleton) |*root| root.deinit();
     singleton = null;
 }
 
-pub fn instance() *TODO_struct {
-    return if (singleton) |*TODO| TODO else unreachable;
+pub fn instance() *Root {
+    return if (singleton) |*root| root else unreachable;
 }
 
-const TODO_struct = struct {
+const Root = struct {
     __allocator: std.mem.Allocator,
 
     fn init(self: *@This(), allocator: std.mem.Allocator) !void {

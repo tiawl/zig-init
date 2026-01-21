@@ -1,11 +1,10 @@
 const std = @import("std");
 const recover = @import("recover");
 
-const index = @import("../index.zig");
+const index = @import("index.zig");
 
-const options = index.options;
-const Options = options.Options;
-const ArgIterator = options.ArgIterator;
+const Options = index.Options;
+const ArgIterator = index.ArgIterator;
 
 test "Options.parse: TODO" {
     const allocator = std.testing.allocator;

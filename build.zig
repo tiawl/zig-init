@@ -1,4 +1,5 @@
 const std = @import("std");
+const zon = @import("build.zig.zon");
 
 const TestSteps = struct {
     unit_test_step: *std.Build.Step,
@@ -22,12 +23,12 @@ fn buildOptions(builder: *std.Build) !*std.Build.Module {
     const git_describe = std.mem.trim(u8, raw_git_describe, " \n\r");
 
     var it = std.mem.splitScalar(u8, git_describe, '.');
-    const TODO_version = it.next().?;
-    const TODO_feature = it.next().?;
-    _ = try std.fmt.parseInt(u32, TODO_version, 10);
-    _ = try std.fmt.parseInt(u32, TODO_feature, 10);
+    const sem_breaking = it.next().?;
+    const sem_feature = it.next().?;
+    _ = try std.fmt.parseInt(u32, sem_breaking, 10);
+    _ = try std.fmt.parseInt(u32, sem_feature, 10);
 
-    const TODO_patch = switch (std.mem.count(u8, git_describe, "-")) {
+    const sem_patch = switch (std.mem.count(u8, git_describe, "-")) {
         // Tagged commit
         0 => it.next().?,
         // Untagged commit
@@ -38,7 +39,7 @@ fn buildOptions(builder: *std.Build) !*std.Build.Module {
             const commit_id = it.next().?;
 
             const sem_version = try std.SemanticVersion.parse(builder.fmt("{s}.{s}.0", .{
-                TODO_version, TODO_feature,
+                sem_breaking, sem_feature,
             }));
             const ancestor_version = try std.SemanticVersion.parse(tagged_ancestor);
             if (sem_version.order(ancestor_version) != .eq) {
@@ -69,8 +70,9 @@ fn buildOptions(builder: *std.Build) !*std.Build.Module {
         },
     };
     const version = builder.fmt("{s}.{s}.{s}", .{
-        TODO_version, TODO_feature, TODO_patch,
+        sem_breaking, sem_feature, sem_patch,
     });
+    options.addOption([:0]const u8, "name", @tagName(zon.name));
     options.addOption([:0]const u8, "version", try builder.allocator.dupeZ(u8, version));
     return options.createModule();
 }
@@ -79,22 +81,49 @@ pub fn build(builder: *std.Build) !void {
     const target = builder.standardTargetOptions(.{});
     const optimize = builder.standardOptimizeOption(.{});
 
-    var back = builder.addModule("TODO", .{
+    const build_options = try buildOptions(builder);
+
+    var back = builder.addModule("back", .{
         .root_source_file = .{
             .cwd_relative = try builder.build_root.join(builder.allocator, &.{
-                "src", "backend", "index.zig",
+                "src", "back", "index.zig",
             }),
         },
         .target = target,
         .optimize = optimize,
+        .imports = &.{
+            .{
+                .name = "build_options",
+                .module = build_options,
+            },
+        },
     });
 
-    const front = builder.addExecutable(.{
-        .name = "TODO",
+    const front = builder.createModule(.{
+        .root_source_file = .{
+            .cwd_relative = try builder.build_root.join(builder.allocator, &.{
+                "src", "front", "index.zig",
+            }),
+        },
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{
+                .name = "build_options",
+                .module = build_options,
+            }, .{
+                .name = "back",
+                .module = back,
+            },
+        },
+    });
+
+    const exe = builder.addExecutable(.{
+        .name = @tagName(zon.name),
         .root_module = builder.createModule(.{
             .root_source_file = .{
                 .cwd_relative = try builder.build_root.join(builder.allocator, &.{
-                    "src", "frontend", "main.zig",
+                    "src", "main.zig",
                 }),
             },
             .target = target,
@@ -102,17 +131,16 @@ pub fn build(builder: *std.Build) !void {
             .imports = &.{
                 .{
                     .name = "build_options",
-                    .module = try buildOptions(builder),
-                },
-                .{
-                    .name = "backend",
-                    .module = back,
+                    .module = build_options,
+                }, .{
+                    .name = "front",
+                    .module = front,
                 },
             },
         }),
     });
 
-    builder.installArtifact(front);
+    builder.installArtifact(exe);
 
     const test_steps: TestSteps = steps: {
         const recover = builder.dependency("recover", .{
@@ -133,7 +161,7 @@ pub fn build(builder: *std.Build) !void {
                 .root_module = builder.createModule(.{
                     .root_source_file = .{
                         .cwd_relative = try builder.build_root.join(builder.allocator, &.{
-                            "src", "backend", "unit.zig",
+                            "src", "back", "unit.zig",
                         }),
                     },
                     .target = target,
@@ -160,14 +188,14 @@ pub fn build(builder: *std.Build) !void {
                 .root_module = builder.createModule(.{
                     .root_source_file = .{
                         .cwd_relative = try builder.build_root.join(builder.allocator, &.{
-                            "src", "frontend", "unit.zig",
+                            "src", "front", "unit.zig",
                         }),
                     },
                     .target = target,
                     .optimize = .Debug,
                 }),
             });
-            for (front.root_module.import_table.keys(), front.root_module.import_table.values()) |name, module|
+            for (front.import_table.keys(), front.import_table.values()) |name, module|
                 front_unit_tests.root_module.addImport(name, module);
             front_unit_tests.root_module.addImport("recover", recover);
 
@@ -183,19 +211,6 @@ pub fn build(builder: *std.Build) !void {
         };
 
         const integration_test_step = step: {
-            const index = builder.createModule(.{
-                .root_source_file = .{
-                    .cwd_relative = try builder.build_root.join(builder.allocator, &.{
-                        "src", "frontend", "index.zig",
-                    }),
-                },
-                .target = target,
-                .optimize = .Debug,
-            });
-
-            for (front.root_module.import_table.keys(), front.root_module.import_table.values()) |name, module|
-                index.addImport(name, module);
-
             const integration_tests = builder.addTest(.{
                 .test_runner = .{
                     .path = .{
@@ -208,7 +223,7 @@ pub fn build(builder: *std.Build) !void {
                 .root_module = builder.createModule(.{
                     .root_source_file = .{
                         .cwd_relative = try builder.build_root.join(builder.allocator, &.{
-                            "src", "frontend", "integration.zig",
+                            "src", "integration.zig",
                         }),
                     },
                     .target = target,
@@ -216,9 +231,8 @@ pub fn build(builder: *std.Build) !void {
                 }),
             });
 
-            for (front.root_module.import_table.keys(), front.root_module.import_table.values()) |name, module|
+            for (exe.root_module.import_table.keys(), exe.root_module.import_table.values()) |name, module|
                 integration_tests.root_module.addImport(name, module);
-            integration_tests.root_module.addImport("index", index);
             integration_tests.root_module.addImport("recover", recover);
 
             const integration_test_runner = builder.addRunArtifact(integration_tests);

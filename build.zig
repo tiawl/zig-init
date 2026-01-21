@@ -9,9 +9,12 @@ fn buildOptions(builder: *std.Build) !*std.Build.Module {
     const options = builder.addOptions();
 
     var code: u8 = undefined;
-    const git = try builder.findProgram(&.{
+    const git = builder.findProgram(&.{
         "git",
-    }, &.{});
+    }, &.{}) catch |err| switch (err) {
+        error.FileNotFound => "git",
+        else => return err,
+    };
     const raw_git_describe = try builder.runAllowFail(&[_][]const u8{
         git,     "-C",     builder.build_root.path orelse ".", "describe", "--match",
         "*.*.*", "--tags", "--abbrev=9",
@@ -112,7 +115,7 @@ pub fn build(builder: *std.Build) !void {
     builder.installArtifact(front);
 
     const test_steps: TestSteps = steps: {
-        const recover = builder.dependency("zig-recover", .{
+        const recover = builder.dependency("recover", .{
             .target = target,
             .optimize = .Debug,
         }).module("recover");
@@ -225,9 +228,12 @@ pub fn build(builder: *std.Build) !void {
 
             const coverage_step = builder.step("coverage", "Generate coverage");
 
-            const kcov = try builder.findProgram(&.{
+            const kcov = builder.findProgram(&.{
                 "kcov",
-            }, &.{});
+            }, &.{}) catch |err| switch (err) {
+                error.FileNotFound => "kcov",
+                else => return err,
+            };
             const include_pattern = builder.fmt("--include-pattern={s}/src/", .{
                 builder.build_root.path.?,
             });

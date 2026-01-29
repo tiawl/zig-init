@@ -1,6 +1,6 @@
 # zig-init
 
-My own zig project starter. No more `zig init` for me.
+My own zig project starter. No more `zig init` for me, folks!
 
 ## License
 

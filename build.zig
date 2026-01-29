@@ -17,16 +17,16 @@ fn buildOptions(builder: *std.Build) !*std.Build.Module {
         else => return err,
     };
     const raw_git_describe = builder.runAllowFail(&[_][]const u8{
-        git,     "-C",     builder.build_root.path orelse ".", "describe", "--match",
-        "*.*.*", "--tags", "--abbrev=9",
+        git,     "-C",     builder.build_root.path orelse ".", "--git-dir", ".git",
+        "describe", "--match", "*.*.*", "--tags", "--abbrev=9",
     }, &code, .Ignore) catch zon.version;
     const git_describe = std.mem.trim(u8, raw_git_describe, " \n\r");
 
     var it = std.mem.splitScalar(u8, git_describe, '.');
     const sem_breaking = it.next().?;
     const sem_feature = it.next().?;
-    _ = try std.fmt.parseInt(u32, sem_breaking, 10);
-    _ = try std.fmt.parseInt(u32, sem_feature, 10);
+    _ = try std.fmt.parseUnsigned(u32, sem_breaking, 10);
+    _ = try std.fmt.parseUnsigned(u32, sem_feature, 10);
 
     const sem_patch = switch (std.mem.count(u8, git_describe, "-")) {
         // Tagged commit
@@ -57,7 +57,7 @@ fn buildOptions(builder: *std.Build) !*std.Build.Module {
                 std.process.exit(1);
             }
 
-            _ = try std.fmt.parseInt(u32, commit_height, 10);
+            _ = try std.fmt.parseUnsigned(u32, commit_height, 10);
             break :blk builder.fmt("{s}+{s}", .{
                 commit_height, commit_id[1..],
             });

@@ -4,10 +4,6 @@
     .fingerprint = 0xc674e4747e3c91b8,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
-        .recover = .{
-            .url = "https://github.com/dimdin/zig-recover/archive/65305542325e01a71bfda50f1616d6bba1defb71.tar.gz",
-            .hash = "12200a40e1260725c35df6cc50f340949e7da9aeba115d3349db780b47bca037b469",
-        },
     },
     .paths = .{
         "build.zig",

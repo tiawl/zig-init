@@ -1,58 +1,61 @@
 const std = @import("std");
 const build_options = @import("build_options");
 
-const recover = @import("recover");
+const join = @import("utils").mem.join;
 
 const front = @import("front");
 
 const ArgIterator = front.ArgIterator;
 
-fn oops() noreturn {
-    @panic("Oops");
+const allocator = std.testing.allocator;
+
+var stderr_buffer: [1024]u8 = undefined;
+var stderr_writer = std.fs.File.stderr().writer(&stderr_buffer);
+var stderr = &stderr_writer.interface;
+var tty_config: std.io.tty.Config = .escape_codes;
+
+var it: ArgIterator = undefined;
+var cli: []const u8 = undefined;
+
+fn start(arena_allocator: std.mem.Allocator, comptime args: []const [:0]const u8) !void {
+    cli = try join(allocator, " ", .{build_options.name} ++ args);
+    try stderr.print("+++ \"{s}\" START\n", .{cli});
+    try stderr.flush();
+    it = ArgIterator.init(allocator, .{build_options.name} ++ args);
+    try front.init(allocator, arena_allocator, &it);
 }
 
-test "success: TODO --standard-options --for-success" {
-    const allocator = std.testing.allocator;
-    var args = ArgIterator.init(allocator, &[_][:0]const u8{
-        build_options.name, // "--standard-options", "--for-success",
-    });
-    defer args.deinit();
-    try front.init(allocator, &args);
-    defer front.deinit();
+fn ok() !void {
+    front.deinit();
+    it.deinit();
+    try tty_config.setColor(stderr, .green);
+    try stderr.print("+++ \"{s}\" OK\n", .{cli});
+    try tty_config.setColor(stderr, .reset);
+    try stderr.flush();
+    allocator.free(cli);
+}
+
+fn renameMe(arena_allocator: std.mem.Allocator) !void {
+    try start(arena_allocator, &.{});
 
     try front.instance().run();
+
+    try ok();
 }
 
-test "success: TODO -V" {
-    const allocator = std.testing.allocator;
-    var args = ArgIterator.init(allocator, &[_][:0]const u8{
-        build_options.name, "-V",
-    });
-    defer args.deinit();
-    try front.init(allocator, &args);
-    defer front.deinit();
+test "success" {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const arena_allocator = arena.allocator();
 
-    try front.instance().run();
-}
+    errdefer |err| {
+        tty_config.setColor(stderr, .red) catch @panic("OOM");
+        stderr.print("{s}\n", .{@errorName(err)}) catch @panic("OOM");
+        tty_config.setColor(stderr, .reset) catch @panic("OOM");
+        stderr.flush() catch @panic("OOM");
+    }
 
-test "panic_before_init: TODO --panic-option --before-init" {
-    const allocator = std.testing.allocator;
-    var args = ArgIterator.init(allocator, &[_][:0]const u8{
-        build_options.name, //"--panic-option", "--before-init",
-    });
-    defer args.deinit();
-    try std.testing.expectError(error.Panic, recover.call(oops, .{}));
-}
-
-test "panic_after_init: TODO --panic-option --after-init" {
-    const allocator = std.testing.allocator;
-    var args = ArgIterator.init(allocator, &[_][:0]const u8{
-        build_options.name, //"--panic-option", "--after-init",
-    });
-    defer args.deinit();
-    try front.init(allocator, &args);
-    defer front.deinit();
-    try std.testing.expectError(error.Panic, recover.call(oops, .{}));
+    try renameMe(arena_allocator);
 }
 
 // TODO: add more integration tests

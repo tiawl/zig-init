@@ -14,10 +14,10 @@ pub fn isInit() bool {
     return singleton != null;
 }
 
-pub fn init(allocator: std.mem.Allocator, args: *ArgIterator) !void {
+pub fn init(allocator: std.mem.Allocator, arena_allocator: std.mem.Allocator, args: *ArgIterator) !void {
     if (!isInit()) {
         singleton = undefined;
-        try singleton.?.init(allocator, args);
+        try singleton.?.init(allocator, arena_allocator, args);
     }
 }
 
@@ -32,11 +32,13 @@ pub fn instance() *Root {
 
 const Root = struct {
     __allocator: std.mem.Allocator,
+    __arena_allocator: std.mem.Allocator,
     __opts: Options,
 
-    fn init(self: *@This(), allocator: std.mem.Allocator, args: *ArgIterator) !void {
+    fn init(self: *@This(), allocator: std.mem.Allocator, arena_allocator: std.mem.Allocator, args: *ArgIterator) !void {
         self.* = .{
             .__allocator = allocator,
+            .__arena_allocator = arena_allocator,
             .__opts = undefined,
         };
 
@@ -55,6 +57,10 @@ const Root = struct {
         return self.__allocator;
     }
 
+    fn getArenaAllocator(self: @This()) std.mem.Allocator {
+        return self.__arena_allocator;
+    }
+
     fn getOpts(self: @This()) Options {
         return self.__opts;
     }
@@ -68,19 +74,20 @@ const Root = struct {
     }
 
     fn help() void {
-        std.debug.print("TODO\n", .{});
+        std.debug.print(
+            \\ complete me please
+            \\
+            , .{});
     }
 
     fn version() void {
-        std.debug.print("TODO %s\n", .{
-            build_options.version,
+        std.debug.print("{s} {s}\n", .{
+            build_options.name, build_options.version,
         });
     }
 
     pub fn run(self: *@This()) !void {
         try back.init(self.getAllocator());
         errdefer back.deinit();
-
-        std.debug.print("TODO\n", .{});
     }
 };

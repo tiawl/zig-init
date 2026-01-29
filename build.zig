@@ -16,10 +16,10 @@ fn buildOptions(builder: *std.Build) !*std.Build.Module {
         error.FileNotFound => "git",
         else => return err,
     };
-    const raw_git_describe = try builder.runAllowFail(&[_][]const u8{
+    const raw_git_describe = builder.runAllowFail(&[_][]const u8{
         git,     "-C",     builder.build_root.path orelse ".", "describe", "--match",
         "*.*.*", "--tags", "--abbrev=9",
-    }, &code, .Ignore);
+    }, &code, .Ignore) catch zon.version;
     const git_describe = std.mem.trim(u8, raw_git_describe, " \n\r");
 
     var it = std.mem.splitScalar(u8, git_describe, '.');
@@ -83,6 +83,17 @@ pub fn build(builder: *std.Build) !void {
 
     const build_options = try buildOptions(builder);
 
+    const utils = builder.createModule(.{
+        .root_source_file = .{
+            .cwd_relative = try builder.build_root.join(builder.allocator, &.{
+                "src", "utils", "index.zig",
+            }),
+        },
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{},
+    });
+
     var back = builder.addModule("back", .{
         .root_source_file = .{
             .cwd_relative = try builder.build_root.join(builder.allocator, &.{
@@ -95,6 +106,10 @@ pub fn build(builder: *std.Build) !void {
             .{
                 .name = "build_options",
                 .module = build_options,
+            },
+            .{
+                .name = "utils",
+                .module = utils,
             },
         },
     });
@@ -111,9 +126,14 @@ pub fn build(builder: *std.Build) !void {
             .{
                 .name = "build_options",
                 .module = build_options,
-            }, .{
+            },
+            .{
                 .name = "back",
                 .module = back,
+            },
+            .{
+                .name = "utils",
+                .module = utils,
             },
         },
     });
@@ -132,9 +152,14 @@ pub fn build(builder: *std.Build) !void {
                 .{
                     .name = "build_options",
                     .module = build_options,
-                }, .{
+                },
+                .{
                     .name = "front",
                     .module = front,
+                },
+                .{
+                    .name = "utils",
+                    .module = utils,
                 },
             },
         }),
@@ -143,11 +168,6 @@ pub fn build(builder: *std.Build) !void {
     builder.installArtifact(exe);
 
     const test_steps: TestSteps = steps: {
-        const recover = builder.dependency("recover", .{
-            .target = target,
-            .optimize = .Debug,
-        }).module("recover");
-
         const unit_test_step = step: {
             const back_unit_tests = builder.addTest(.{
                 .test_runner = .{
@@ -170,7 +190,6 @@ pub fn build(builder: *std.Build) !void {
             });
             for (back.import_table.keys(), back.import_table.values()) |name, module|
                 back_unit_tests.root_module.addImport(name, module);
-            back_unit_tests.root_module.addImport("recover", recover);
 
             back_unit_tests.step.dependOn(builder.getInstallStep());
 
@@ -197,7 +216,6 @@ pub fn build(builder: *std.Build) !void {
             });
             for (front.import_table.keys(), front.import_table.values()) |name, module|
                 front_unit_tests.root_module.addImport(name, module);
-            front_unit_tests.root_module.addImport("recover", recover);
 
             front_unit_tests.step.dependOn(builder.getInstallStep());
 
@@ -233,7 +251,6 @@ pub fn build(builder: *std.Build) !void {
 
             for (exe.root_module.import_table.keys(), exe.root_module.import_table.values()) |name, module|
                 integration_tests.root_module.addImport(name, module);
-            integration_tests.root_module.addImport("recover", recover);
 
             const integration_test_runner = builder.addRunArtifact(integration_tests);
 

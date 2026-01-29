@@ -33,6 +33,11 @@ pub fn main() void {
         }
     }
 
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    const arena_allocator = arena.allocator();
+
     const args = std.process.argsAlloc(allocator) catch |err| {
         std.debug.print("Failed to process command line arguments: {s}\n", .{
             @errorName(err),
@@ -43,7 +48,7 @@ pub fn main() void {
     var it = ArgIterator.init(allocator, args);
     defer it.deinit();
 
-    front.init(allocator, &it) catch |err| {
+    front.init(allocator, arena_allocator, &it) catch |err| {
         std.debug.print("Failed to init: {s}\n", .{
             @errorName(err),
         });

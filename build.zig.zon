@@ -1,6 +1,7 @@
 .{
     .name = .init,
     .version = "0.0.0",
+    .description = "No more `zig init` for me, folks!",
     .fingerprint = 0xc674e4747e3c91b8,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{

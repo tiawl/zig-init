@@ -74,6 +74,7 @@ fn buildOptions(builder: *std.Build) !*std.Build.Module {
     });
     options.addOption([:0]const u8, "name", @tagName(zon.name));
     options.addOption([:0]const u8, "version", try builder.allocator.dupeZ(u8, version));
+    options.addOption([:0]const u8, "description", zon.description);
     return options.createModule();
 }
 

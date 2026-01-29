@@ -112,7 +112,7 @@ pub const ArgIterator = struct {
 
     fn popFront(self: *@This()) void {
         std.debug.assert(self.getDeque().len > 0);
-        self.getAllocator().free(self.getDeque().front().?);
+        self.getAllocator().free(self.ptrDeque().popFront().?);
     }
 
     fn append(self: *@This(), comptime fmt: []const u8, args: anytype) !void {

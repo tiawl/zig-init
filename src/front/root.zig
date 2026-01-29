@@ -45,7 +45,10 @@ const Root = struct {
         self.setOpts(try Options.init(allocator));
         errdefer self.ptrOpts().deinit();
 
-        try self.ptrOpts().parse(args);
+        self.ptrOpts().parse(args) catch |err| {
+            help();
+            return err;
+        };
     }
 
     fn deinit(self: *@This()) void {
@@ -75,9 +78,17 @@ const Root = struct {
 
     fn help() void {
         std.debug.print(
-            \\ complete me please
+            \\{s}
             \\
-            , .{});
+            \\Usage:
+            \\  {s} [options]
+            \\
+            \\Options:
+            \\  TODO
+            \\
+            , .{
+                build_options.description, build_options.name,
+            });
     }
 
     fn version() void {
@@ -89,5 +100,15 @@ const Root = struct {
     pub fn run(self: *@This()) !void {
         try back.init(self.getAllocator());
         errdefer back.deinit();
+
+        if (self.getOpts().getVersion()) {
+            version();
+            if (!self.getOpts().getHelp()) return;
+        }
+
+        if (self.getOpts().getHelp()) {
+            help();
+            return;
+        }
     }
 };

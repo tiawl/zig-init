@@ -1,5 +1,6 @@
 const std = @import("std");
-const zon = @import("build.zig.zon");
+const build_zig_zon = @import("build.zig.zon");
+const trim = @import("src/utils/index.zig").mem.trim;
 
 const TestSteps = struct {
     unit_test_step: *std.Build.Step,
@@ -16,11 +17,30 @@ fn buildOptions(builder: *std.Build) !*std.Build.Module {
         error.FileNotFound => "git",
         else => return err,
     };
-    const raw_git_describe = builder.runAllowFail(&[_][]const u8{
-        git,     "-C",     builder.build_root.path orelse ".", "--git-dir", ".git",
+    const raw_taglist = try builder.runAllowFail(&[_][]const u8{
+        git, "-C", builder.build_root.path orelse ".", "--git-dir", ".git",
+        "tag", "-l", "0.0.0",
+    }, &code, .Ignore);
+    if (std.mem.eql(u8, "0.0.0", trim(raw_taglist))) {
+        _ = try builder.runAllowFail(&[_][]const u8{
+            git, "-C", builder.build_root.path orelse ".", "--git-dir", ".git",
+            "tag", "-d", "0.0.0",
+        }, &code, .Ignore);
+    }
+    const raw_init_commit = try builder.runAllowFail(&[_][]const u8{
+        git, "-C", builder.build_root.path orelse ".", "--git-dir", ".git",
+        "rev-list", "--max-parents=0", "HEAD",
+    }, &code, .Ignore);
+    const init_commit = trim(raw_init_commit);
+    _ = try builder.runAllowFail(&[_][]const u8{
+        git, "-C", builder.build_root.path orelse ".", "--git-dir", ".git",
+        "tag", "0.0.0", init_commit,
+    }, &code, .Ignore);
+    const raw_git_describe = try builder.runAllowFail(&[_][]const u8{
+        git, "-C", builder.build_root.path orelse ".", "--git-dir", ".git",
         "describe", "--match", "*.*.*", "--tags", "--abbrev=9",
-    }, &code, .Ignore) catch zon.version;
-    const git_describe = std.mem.trim(u8, raw_git_describe, " \n\r");
+    }, &code, .Ignore);
+    const git_describe = trim(raw_git_describe);
 
     var it = std.mem.splitScalar(u8, git_describe, '.');
     const sem_breaking = it.next().?;
@@ -72,9 +92,9 @@ fn buildOptions(builder: *std.Build) !*std.Build.Module {
     const version = builder.fmt("{s}.{s}.{s}", .{
         sem_breaking, sem_feature, sem_patch,
     });
-    options.addOption([:0]const u8, "name", @tagName(zon.name));
+    options.addOption([:0]const u8, "name", @tagName(build_zig_zon.name));
     options.addOption([:0]const u8, "version", try builder.allocator.dupeZ(u8, version));
-    options.addOption([:0]const u8, "description", zon.description);
+    options.addOption([:0]const u8, "description", build_zig_zon.description);
     return options.createModule();
 }
 
@@ -140,7 +160,7 @@ pub fn build(builder: *std.Build) !void {
     });
 
     const exe = builder.addExecutable(.{
-        .name = @tagName(zon.name),
+        .name = @tagName(build_zig_zon.name),
         .root_module = builder.createModule(.{
             .root_source_file = .{
                 .cwd_relative = try builder.build_root.join(builder.allocator, &.{

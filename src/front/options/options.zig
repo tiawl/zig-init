@@ -29,12 +29,25 @@ fn isUsed(comptime field: Opt, arg: [:0]const u8) bool {
     return std.mem.eql(u8, arg, short(field)) or std.mem.eql(u8, arg, long(field));
 }
 
+pub fn desc(self: Opt) []const u8 {
+    return switch (self) {
+        .help => "Prints help information",
+        .version => "Prints version information",
+    };
+}
+
+pub fn param(self: Opt) []const u8 {
+    return switch (self) {
+        .help, .version => "",
+    };
+}
+
 const Opt = @Type(.{
     .@"enum" = .{
         .tag_type = u8,
         .fields = @typeInfo(OptWith1Param).@"enum".fields ++ @typeInfo(OptWithoutParam).@"enum".fields,
         .decls = &.{},
-        .is_exhaustive = false,
+        .is_exhaustive = true,
     },
 });
 
@@ -255,6 +268,19 @@ pub const Options = struct {
             } else if (isUsed(.version, arg)) {
                 self.needVersion();
             } else return error.UnknownArgument;
+        }
+    }
+
+    pub fn printHelp(self: @This()) std.mem.Allocator.Error!void {
+        var max: usize = 0;
+        for (std.enums.values(Opt)) |opt| max = @max(@tagName(opt).len + 1 + param(opt).len, max);
+        for (std.enums.values(Opt)) |opt| {
+            const spaces = try self.getAllocator().alloc(u8, max - @tagName(opt).len - 1 - param(opt).len);
+            defer self.getAllocator().free(spaces);
+            @memset(spaces, ' ');
+            std.debug.print("    -{c}, -{s} {s}{s}   {s}\n", .{
+                @intFromEnum(opt), @tagName(opt), param(opt), spaces, desc(opt),
+            });
         }
     }
 };

@@ -46,7 +46,7 @@ const Root = struct {
         errdefer self.ptrOpts().deinit();
 
         self.ptrOpts().parse(args) catch |err| {
-            help();
+            try self.help();
             return err;
         };
     }
@@ -76,19 +76,19 @@ const Root = struct {
         self.ptrOpts().* = opts;
     }
 
-    fn help() void {
+    fn help(self: @This()) std.mem.Allocator.Error!void {
         std.debug.print(
             \\{s}
             \\
             \\Usage:
-            \\  {s} [options]
+            \\    {s} [options]
             \\
             \\Options:
-            \\  TODO
             \\
             , .{
                 build_options.description, build_options.name,
             });
+       try self.getOpts().printHelp();
     }
 
     fn version() void {
@@ -107,7 +107,7 @@ const Root = struct {
         }
 
         if (self.getOpts().getHelp()) {
-            help();
+            try self.help();
             return;
         }
     }

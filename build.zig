@@ -188,6 +188,20 @@ pub fn build(builder: *std.Build) !void {
 
     builder.installArtifact(exe);
 
+    var kcov_installed = true;
+    const kcov = builder.findProgram(&.{
+        "kcov",
+    }, &.{}) catch |err| blk: {
+        switch (err) {
+            error.FileNotFound => {
+                kcov_installed = false;
+                std.log.warn("`kcov` utility not found. Install it if you want to run `coverage` step.", .{});
+            },
+            else => return err,
+        }
+        break :blk "";
+    };
+
     const test_steps: TestSteps = steps: {
         const unit_test_step = step: {
             const back_unit_tests = builder.addTest(.{
@@ -278,28 +292,24 @@ pub fn build(builder: *std.Build) !void {
             const integration_test_step = builder.step("test-integration", "Run integration tests");
             integration_test_step.dependOn(&integration_test_runner.step);
 
-            const coverage_step = builder.step("coverage", "Generate coverage");
+            if (kcov_installed) {
+                const coverage_step = builder.step("coverage", "Generate coverage");
 
-            const kcov = builder.findProgram(&.{
-                "kcov",
-            }, &.{}) catch |err| switch (err) {
-                error.FileNotFound => "kcov",
-                else => return err,
-            };
-            const include_pattern = builder.fmt("--include-pattern={s}/src/", .{
-                builder.build_root.path.?,
-            });
-            const exclude_pattern = builder.fmt("--exclude-pattern={s}/,{s}/", .{
-                builder.cache_root.path.?,
-                builder.graph.global_cache_root.path.?,
-            });
-            const coverage_runner = builder.addSystemCommand(&.{
-                kcov, "--clean", include_pattern, exclude_pattern, "coverage/",
-            });
+                const include_pattern = builder.fmt("--include-pattern={s}/src/", .{
+                    builder.build_root.path.?,
+                });
+                const exclude_pattern = builder.fmt("--exclude-pattern={s}/,{s}/", .{
+                    builder.cache_root.path.?,
+                    builder.graph.global_cache_root.path.?,
+                });
+                const coverage_runner = builder.addSystemCommand(&.{
+                    kcov, "--clean", include_pattern, exclude_pattern, "coverage/",
+                });
 
-            coverage_runner.addArtifactArg(integration_tests);
+                coverage_runner.addArtifactArg(integration_tests);
 
-            coverage_step.dependOn(&coverage_runner.step);
+                coverage_step.dependOn(&coverage_runner.step);
+            }
 
             break :step integration_test_step;
         };

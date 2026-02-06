@@ -1,5 +1,5 @@
 const options = @import("options/index.zig");
-pub const Options = options.Options;
+pub const OptionsParser = options.Parser;
 pub const ArgIterator = options.ArgIterator;
 
 const front = @import("root.zig");

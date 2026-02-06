@@ -15,43 +15,43 @@ fn enumTags(comptime T: type) []const u8 {
     return &final;
 }
 
-fn short(comptime field: Opt) []const u8 {
+fn short(comptime field: Options) []const u8 {
     return "-" ++ std.fmt.comptimePrint("{c}", .{
         @intFromEnum(field),
     });
 }
 
-fn long(comptime field: Opt) []const u8 {
+fn long(comptime field: Options) []const u8 {
     return "--" ++ @tagName(field);
 }
 
-fn isUsed(comptime field: Opt, arg: [:0]const u8) bool {
+fn isUsed(comptime field: Options, arg: [:0]const u8) bool {
     return std.mem.eql(u8, arg, short(field)) or std.mem.eql(u8, arg, long(field));
 }
 
-pub fn desc(self: Opt) []const u8 {
+pub fn desc(self: Options) []const u8 {
     return switch (self) {
         .help => "Prints help information",
         .version => "Prints version information",
     };
 }
 
-pub fn param(self: Opt) []const u8 {
+pub fn param(self: Options) []const u8 {
     return switch (self) {
         .help, .version => "",
     };
 }
 
-const Opt = @Type(.{
+const Options = @Type(.{
     .@"enum" = .{
         .tag_type = u8,
-        .fields = @typeInfo(OptWith1Param).@"enum".fields ++ @typeInfo(OptWithoutParam).@"enum".fields,
+        .fields = @typeInfo(OptionsWith1Param).@"enum".fields ++ @typeInfo(OptionsWithoutParam).@"enum".fields,
         .decls = &.{},
         .is_exhaustive = true,
     },
 });
 
-const OptWith1Param = enum(u8) {
+const OptionsWith1Param = enum(u8) {
     const tags = enumTags(@This());
 
     fn is(str: []const u8) bool {
@@ -64,7 +64,7 @@ const OptWith1Param = enum(u8) {
     // file = 'f',
 };
 
-const OptWithoutParam = enum(u8) {
+const OptionsWithoutParam = enum(u8) {
     const tags = enumTags(@This());
 
     help = 'h',
@@ -134,10 +134,10 @@ pub const ArgIterator = struct {
     }
 
     // Handle '-abc' the same as '-a -bc' for short-form no-arg options
-    fn handleContractedShortOptWithoutParam(self: *@This()) !void {
+    fn handleContractedShortOptionsWithoutParam(self: *@This()) !void {
         var arg = if (self.getDeque().len > 0) self.getDeque().front().? else self.getArg(self.getI());
 
-        if (!std.mem.startsWith(u8, arg, "-") or arg.len <= 2 or std.mem.indexOfAny(u8, arg[1..], OptWithoutParam.tags) != 0) return;
+        if (!std.mem.startsWith(u8, arg, "-") or arg.len <= 2 or std.mem.indexOfAny(u8, arg[1..], OptionsWithoutParam.tags) != 0) return;
 
         var allocated = false;
         defer if (allocated) self.getAllocator().free(arg);
@@ -156,10 +156,10 @@ pub const ArgIterator = struct {
     }
 
     // Handle '-foo' the same as '-f oo' for short-form 1-arg options
-    fn handleContractedShortOptWith1Param(self: *@This()) !void {
+    fn handleContractedShortOptionsWith1Param(self: *@This()) !void {
         var arg = if (self.getDeque().len > 0) self.getDeque().front().? else self.getArg(self.getI());
 
-        if (!std.mem.startsWith(u8, arg, "-") or arg.len <= 2 or std.mem.indexOfAny(u8, arg[1..], OptWith1Param.tags) != 0) return;
+        if (!std.mem.startsWith(u8, arg, "-") or arg.len <= 2 or std.mem.indexOfAny(u8, arg[1..], OptionsWith1Param.tags) != 0) return;
 
         var allocated = false;
         defer if (allocated) self.getAllocator().free(arg);
@@ -178,11 +178,11 @@ pub const ArgIterator = struct {
     }
 
     // Handle '--file=file1' the same as '--file file1' for long-form 1-arg options
-    fn handleEqualLongOptWith1Param(self: *@This()) !void {
+    fn handleEqualLongOptionsWith1Param(self: *@This()) !void {
         var arg = if (self.getDeque().len > 0) self.getDeque().front().? else self.getArg(self.getI());
         const equal_index = std.mem.indexOfScalar(u8, arg, '=');
 
-        if (!std.mem.startsWith(u8, arg, "--") or arg.len <= 3 or equal_index == null or !OptWith1Param.is(arg[2..equal_index.?])) return;
+        if (!std.mem.startsWith(u8, arg, "--") or arg.len <= 3 or equal_index == null or !OptionsWith1Param.is(arg[2..equal_index.?])) return;
 
         var allocated = false;
         defer if (allocated) self.getAllocator().free(arg);
@@ -210,9 +210,9 @@ pub const ArgIterator = struct {
 
         if (self.getI() >= self.getArgs().len and self.getDeque().len == 0) return null;
 
-        try self.handleContractedShortOptWithoutParam();
-        if (self.getDeque().len < 2) try self.handleContractedShortOptWith1Param();
-        if (self.getDeque().len < 2) try self.handleEqualLongOptWith1Param();
+        try self.handleContractedShortOptionsWithoutParam();
+        if (self.getDeque().len < 2) try self.handleContractedShortOptionsWith1Param();
+        if (self.getDeque().len < 2) try self.handleEqualLongOptionsWith1Param();
 
         if (self.getDeque().len > 0) {
             return self.getDeque().front().?;
@@ -223,7 +223,7 @@ pub const ArgIterator = struct {
     }
 };
 
-pub const Options = struct {
+pub const Parser = struct {
     __allocator: std.mem.Allocator,
     __help: bool,
     __version: bool,
@@ -273,8 +273,8 @@ pub const Options = struct {
 
     pub fn printHelp(self: @This()) std.mem.Allocator.Error!void {
         var max: usize = 0;
-        for (std.enums.values(Opt)) |opt| max = @max(@tagName(opt).len + 1 + param(opt).len, max);
-        for (std.enums.values(Opt)) |opt| {
+        for (std.enums.values(Options)) |opt| max = @max(@tagName(opt).len + 1 + param(opt).len, max);
+        for (std.enums.values(Options)) |opt| {
             const spaces = try self.getAllocator().alloc(u8, max - @tagName(opt).len - 1 - param(opt).len);
             defer self.getAllocator().free(spaces);
             @memset(spaces, ' ');

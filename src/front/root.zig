@@ -5,7 +5,7 @@ const back = @import("back");
 
 const index = @import("index.zig");
 
-const Options = index.Options;
+const OptionsParser = index.OptionsParser;
 const ArgIterator = index.ArgIterator;
 
 var singleton: ?Root = null;
@@ -33,26 +33,26 @@ pub fn instance() *Root {
 const Root = struct {
     __allocator: std.mem.Allocator,
     __arena_allocator: std.mem.Allocator,
-    __opts: Options,
+    __options_parser: OptionsParser,
 
     fn init(self: *@This(), allocator: std.mem.Allocator, arena_allocator: std.mem.Allocator, args: *ArgIterator) !void {
         self.* = .{
             .__allocator = allocator,
             .__arena_allocator = arena_allocator,
-            .__opts = undefined,
+            .__options_parser = undefined,
         };
 
-        self.setOpts(try Options.init(allocator));
-        errdefer self.ptrOpts().deinit();
+        self.setOptionsParser(try OptionsParser.init(allocator));
+        errdefer self.ptrOptionsParser().deinit();
 
-        self.ptrOpts().parse(args) catch |err| {
+        self.ptrOptionsParser().parse(args) catch |err| {
             try self.help();
             return err;
         };
     }
 
     fn deinit(self: *@This()) void {
-        self.ptrOpts().deinit();
+        self.ptrOptionsParser().deinit();
         back.deinit();
     }
 
@@ -64,16 +64,16 @@ const Root = struct {
         return self.__arena_allocator;
     }
 
-    fn getOpts(self: @This()) Options {
-        return self.__opts;
+    fn getOptionsParser(self: @This()) OptionsParser {
+        return self.__options_parser;
     }
 
-    fn ptrOpts(self: *@This()) *Options {
-        return &self.__opts;
+    fn ptrOptionsParser(self: *@This()) *OptionsParser {
+        return &self.__options_parser;
     }
 
-    fn setOpts(self: *@This(), opts: Options) void {
-        self.ptrOpts().* = opts;
+    fn setOptionsParser(self: *@This(), options_parser: OptionsParser) void {
+        self.ptrOptionsParser().* = options_parser;
     }
 
     fn help(self: @This()) std.mem.Allocator.Error!void {
@@ -88,7 +88,7 @@ const Root = struct {
             , .{
                 build_options.description, build_options.name,
             });
-       try self.getOpts().printHelp();
+       try self.getOptionsParser().printHelp();
     }
 
     fn version() void {
@@ -101,12 +101,12 @@ const Root = struct {
         try back.init(self.getAllocator());
         errdefer back.deinit();
 
-        if (self.getOpts().getVersion()) {
+        if (self.getOptionsParser().getVersion()) {
             version();
-            if (!self.getOpts().getHelp()) return;
+            if (!self.getOptionsParser().getHelp()) return;
         }
 
-        if (self.getOpts().getHelp()) {
+        if (self.getOptionsParser().getHelp()) {
             try self.help();
             return;
         }
